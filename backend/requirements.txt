@@ -47,7 +47,7 @@ python-dotenv==1.0.0
 # Platform API integrations  
 facebook-business==18.0.0
 squareup==43.0.1.20250716
-google-ads==22.1.0
+google-ads==21.3.0
 
 # Additional utilities
 python-dateutil==2.8.2
