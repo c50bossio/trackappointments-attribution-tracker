@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: trackappointments-backend
+    env: python
+    repo: https://github.com/c50bossio/trackappointments-attribution-tracker.git
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT
+    plan: free
+    region: oregon
+    # Environment variables will be set manually in Render dashboard for security
+
+  - type: web
+    name: trackappointments-frontend
+    env: node
+    repo: https://github.com/c50bossio/trackappointments-attribution-tracker.git
+    buildCommand: cd frontend && npm install && npm run build
+    startCommand: cd frontend && npm start
+    plan: free
+    region: oregon
+    envVars:
+      - key: NEXT_PUBLIC_API_URL
+        value: https://trackappointments-backend.onrender.com
