@@ -1,0 +1,28 @@
+🔧 FINAL TOKEN CONFIGURATION FIX
+
+In your Cloudflare token creation screen:
+
+CHANGE THIS:
+┌─────────────────────────────────────┐
+│ Zone Resources:                     │
+│ Include | All zones                 │ ← CHANGE THIS
+└─────────────────────────────────────┘
+
+TO THIS:
+┌─────────────────────────────────────┐
+│ Zone Resources:                     │
+│ Include | Specific zone             │
+│         | trackappointments.com     │
+└─────────────────────────────────────┘
+
+STEPS:
+1. Click the dropdown that says "All zones"
+2. Select "Specific zone"
+3. Type: trackappointments.com
+4. Click "Continue to summary"
+5. Click "Create Token"
+6. COPY THE TOKEN immediately!
+
+Then run: ./auto-dns-setup.sh
+
+This will fix the authentication issues we've been having!

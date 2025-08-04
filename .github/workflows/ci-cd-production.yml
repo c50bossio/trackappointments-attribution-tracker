@@ -1,0 +1,566 @@
+# Production CI/CD Pipeline for BookingBridge Attribution Tracker
+# Comprehensive workflow with security scanning, testing, and deployment
+
+name: Production CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, release/* ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME_BACKEND: bookingbridge/backend
+  IMAGE_NAME_FRONTEND: bookingbridge/frontend
+  KUBECONFIG_FILE: ${{ secrets.KUBECONFIG }}
+  
+jobs:
+  # ================================
+  # Code Quality and Security Checks
+  # ================================
+  security-scan:
+    name: Security Scanning
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install security tools
+      run: |
+        pip install bandit safety semgrep
+        npm install -g audit-ci
+    
+    - name: Run Bandit security linter
+      run: |
+        bandit -r backend/ -f json -o bandit-report.json || true
+        bandit -r backend/ -ll -f txt
+    
+    - name: Check Python dependencies for vulnerabilities
+      run: |
+        pip install -r backend/requirements.txt
+        safety check --json --output safety-report.json || true
+        safety check
+    
+    - name: Run Semgrep security analysis
+      run: |
+        semgrep --config=auto backend/ frontend/ --json --output=semgrep-report.json || true
+        semgrep --config=auto backend/ frontend/
+    
+    - name: Frontend security audit
+      run: |
+        cd frontend
+        npm ci
+        npm audit --audit-level=moderate
+        audit-ci --moderate
+    
+    - name: Upload security reports
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: security-reports
+        path: |
+          bandit-report.json
+          safety-report.json
+          semgrep-report.json
+        retention-days: 30
+
+  # ================================
+  # Backend Testing and Build
+  # ================================
+  backend-test:
+    name: Backend Testing
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+    
+    - name: Install dependencies
+      run: |
+        cd backend
+        pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -r requirements-ml.txt
+        pip install pytest-cov pytest-xdist
+    
+    - name: Set up test environment
+      run: |
+        export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/test_db"
+        export REDIS_URL="redis://localhost:6379/0"
+        export ENVIRONMENT="testing"
+        export SECRET_KEY="test-secret-key"
+        export HASH_SALT="test-hash-salt"
+    
+    - name: Run linting
+      run: |
+        cd backend
+        pip install black isort flake8 mypy
+        black --check .
+        isort --check-only .
+        flake8 .
+        mypy . --ignore-missing-imports
+    
+    - name: Run unit tests
+      run: |
+        cd backend
+        pytest tests/unit/ -v --cov=app --cov-report=xml --cov-report=term-missing --maxfail=5 -n auto
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+        REDIS_URL: redis://localhost:6379/0
+        ENVIRONMENT: testing
+    
+    - name: Run integration tests
+      run: |
+        cd backend
+        pytest tests/integration/ -v --maxfail=3
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+        REDIS_URL: redis://localhost:6379/0
+        ENVIRONMENT: testing
+    
+    - name: Run performance tests
+      run: |
+        cd backend
+        pytest tests/performance/ -v --benchmark-only
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+        REDIS_URL: redis://localhost:6379/0
+    
+    - name: Upload test coverage
+      uses: codecov/codecov-action@v3
+      with:
+        file: backend/coverage.xml
+        flags: backend
+        name: backend-coverage
+    
+    - name: Store test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: backend-test-results
+        path: |
+          backend/test-reports/
+          backend/coverage.xml
+        retention-days: 30
+
+  # ================================
+  # Frontend Testing and Build
+  # ================================
+  frontend-test:
+    name: Frontend Testing
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+    
+    - name: Install dependencies
+      run: |
+        cd frontend
+        npm ci
+    
+    - name: Run linting
+      run: |
+        cd frontend
+        npm run lint
+        npm run type-check
+    
+    - name: Run unit tests
+      run: |
+        cd frontend
+        npm run test:coverage
+    
+    - name: Run E2E tests
+      run: |
+        cd frontend
+        npm run build
+        npm run test:e2e
+    
+    - name: Upload frontend coverage
+      uses: codecov/codecov-action@v3
+      with:
+        file: frontend/coverage/lcov.info
+        flags: frontend
+        name: frontend-coverage
+    
+    - name: Store test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: frontend-test-results
+        path: |
+          frontend/test-reports/
+          frontend/coverage/
+        retention-days: 30
+
+  # ================================
+  # Container Image Build and Scan
+  # ================================
+  build-backend:
+    name: Build Backend Image
+    runs-on: ubuntu-latest
+    needs: [security-scan, backend-test]
+    permissions:
+      contents: read
+      packages: write
+      security-events: write
+    
+    outputs:
+      image-tag: ${{ steps.meta.outputs.tags }}
+      image-digest: ${{ steps.build.outputs.digest }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_BACKEND }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+    
+    - name: Build and push Docker image
+      id: build
+      uses: docker/build-push-action@v5
+      with:
+        context: ./backend
+        file: ./backend/Dockerfile.optimized
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        platforms: linux/amd64,linux/arm64
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        provenance: true
+        sbom: true
+    
+    - name: Run Trivy container scan
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_BACKEND }}:${{ github.sha }}
+        format: 'sarif'
+        output: 'backend-trivy-results.sarif'
+    
+    - name: Upload Trivy scan results
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: 'backend-trivy-results.sarif'
+        category: 'container-backend'
+
+  build-frontend:
+    name: Build Frontend Image
+    runs-on: ubuntu-latest
+    needs: [security-scan, frontend-test]
+    permissions:
+      contents: read
+      packages: write
+      security-events: write
+    
+    outputs:
+      image-tag: ${{ steps.meta.outputs.tags }}
+      image-digest: ${{ steps.build.outputs.digest }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+    
+    - name: Build and push Docker image
+      id: build
+      uses: docker/build-push-action@v5
+      with:
+        context: ./frontend
+        file: ./frontend/Dockerfile.optimized
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        platforms: linux/amd64,linux/arm64
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        provenance: true
+        sbom: true
+    
+    - name: Run Trivy container scan
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}:${{ github.sha }}
+        format: 'sarif'
+        output: 'frontend-trivy-results.sarif'
+    
+    - name: Upload Trivy scan results
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: 'frontend-trivy-results.sarif'
+        category: 'container-frontend'
+
+  # ================================
+  # Infrastructure Validation
+  # ================================
+  validate-infrastructure:
+    name: Validate Infrastructure
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: 1.6.0
+    
+    - name: Terraform Format Check
+      run: |
+        cd infrastructure/terraform
+        terraform fmt -check -recursive
+    
+    - name: Terraform Validate
+      run: |
+        cd infrastructure/terraform
+        terraform init -backend=false
+        terraform validate
+    
+    - name: Set up kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'v1.28.0'
+    
+    - name: Validate Kubernetes manifests
+      run: |
+        kubectl --dry-run=client apply -f k8s/
+    
+    - name: Lint Kubernetes manifests
+      run: |
+        # Install kubeval
+        wget https://github.com/instrumenta/kubeval/releases/latest/download/kubeval-linux-amd64.tar.gz
+        tar xf kubeval-linux-amd64.tar.gz
+        sudo mv kubeval /usr/local/bin
+        
+        # Validate manifests
+        kubeval k8s/*.yaml
+    
+    - name: Security policy validation
+      run: |
+        # Install OPA Conftest
+        wget https://github.com/open-policy-agent/conftest/releases/download/v0.46.0/conftest_0.46.0_Linux_x86_64.tar.gz
+        tar xzf conftest_0.46.0_Linux_x86_64.tar.gz
+        sudo mv conftest /usr/local/bin
+        
+        # Validate against security policies
+        conftest verify --policy security-policies/ k8s/
+
+  # ================================
+  # Production Deployment
+  # ================================
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [build-backend, build-frontend, validate-infrastructure]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment:
+      name: production
+      url: https://bookingbridge.com
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'v1.28.0'
+    
+    - name: Configure kubectl
+      run: |
+        echo "${{ secrets.KUBECONFIG }}" | base64 --decode > kubeconfig
+        export KUBECONFIG=kubeconfig
+    
+    - name: Create namespace if not exists
+      run: |
+        kubectl apply -f k8s/00-namespace.yaml
+    
+    - name: Update secrets
+      run: |
+        kubectl create secret generic bookingbridge-secrets \
+          --from-literal=DATABASE_URL="${{ secrets.DATABASE_URL }}" \
+          --from-literal=REDIS_URL="${{ secrets.REDIS_URL }}" \
+          --from-literal=SECRET_KEY="${{ secrets.SECRET_KEY }}" \
+          --from-literal=HASH_SALT="${{ secrets.HASH_SALT }}" \
+          --from-literal=FACEBOOK_APP_SECRET="${{ secrets.FACEBOOK_APP_SECRET }}" \
+          --from-literal=GOOGLE_ADS_DEVELOPER_TOKEN="${{ secrets.GOOGLE_ADS_DEVELOPER_TOKEN }}" \
+          --from-literal=SENDGRID_API_KEY="${{ secrets.SENDGRID_API_KEY }}" \
+          --from-literal=TWILIO_AUTH_TOKEN="${{ secrets.TWILIO_AUTH_TOKEN }}" \
+          --namespace=bookingbridge \
+          --dry-run=client -o yaml | kubectl apply -f -
+    
+    - name: Update image tags in manifests
+      run: |
+        sed -i "s|ghcr.io/bookingbridge/backend:.*|${{ needs.build-backend.outputs.image-tag }}|g" k8s/02-backend-deployment.yaml
+        sed -i "s|ghcr.io/bookingbridge/frontend:.*|${{ needs.build-frontend.outputs.image-tag }}|g" k8s/03-frontend-deployment.yaml
+    
+    - name: Deploy to Kubernetes
+      run: |
+        kubectl apply -f k8s/ --namespace=bookingbridge
+        kubectl rollout status deployment/bookingbridge-backend --namespace=bookingbridge --timeout=300s
+        kubectl rollout status deployment/bookingbridge-frontend --namespace=bookingbridge --timeout=300s
+    
+    - name: Run post-deployment tests
+      run: |
+        # Wait for deployment to be ready
+        sleep 30
+        
+        # Health check
+        kubectl run test-pod --image=curlimages/curl:latest --rm -i --restart=Never \
+          --namespace=bookingbridge \
+          -- curl -f http://bookingbridge-backend:8000/health
+        
+        kubectl run test-pod --image=curlimages/curl:latest --rm -i --restart=Never \
+          --namespace=bookingbridge \
+          -- curl -f http://bookingbridge-frontend:80/health
+    
+    - name: Send deployment notification
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ job.status }}
+        channel: '#deployments'
+        webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+        fields: repo,message,commit,author,action,eventName,ref,workflow
+      if: always()
+    
+    - name: Clean up
+      run: |
+        rm -f kubeconfig
+      if: always()
+
+# ================================
+# Reusable Workflows
+# ================================
+  notify-failure:
+    name: Notify on Failure
+    runs-on: ubuntu-latest
+    needs: [security-scan, backend-test, frontend-test, build-backend, build-frontend, validate-infrastructure, deploy-production]
+    if: failure()
+    
+    steps:
+    - name: Send failure notification
+      uses: 8398a7/action-slack@v3
+      with:
+        status: failure
+        channel: '#alerts'
+        webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+        fields: repo,message,commit,author,action,eventName,ref,workflow
+        custom_payload: |
+          {
+            "text": "🚨 Production deployment failed for BookingBridge",
+            "attachments": [{
+              "color": "danger",
+              "fields": [{
+                "title": "Repository",
+                "value": "${{ github.repository }}",
+                "short": true
+              }, {
+                "title": "Branch",
+                "value": "${{ github.ref }}",
+                "short": true
+              }, {
+                "title": "Commit",
+                "value": "${{ github.sha }}",
+                "short": true
+              }, {
+                "title": "Author",
+                "value": "${{ github.actor }}",
+                "short": true  
+              }]
+            }]
+          }

@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BookingBridge - Barbershop Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .nav-item { transition: all 0.3s ease; }
+        .nav-item:hover { background: rgba(59, 130, 246, 0.1); }
+        .nav-item.active { background: rgb(59, 130, 246); color: white; }
+        .fade-in { animation: fadeIn 0.5s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <!-- Navigation Header -->
+    <nav class="bg-white shadow-lg border-b">
+        <div class="max-w-7xl mx-auto px-4">
+            <div class="flex justify-between items-center h-16">
+                <!-- Logo -->
+                <div class="flex items-center space-x-4">
+                    <div class="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
+                        <span class="text-white font-bold">BB</span>
+                    </div>
+                    <h1 class="text-xl font-bold text-gray-900">BookingBridge</h1>
+                </div>
+                
+                <!-- Navigation Menu -->
+                <div class="flex space-x-1">
+                    <button onclick="showPage('dashboard')" class="nav-item px-4 py-2 rounded-lg font-medium" id="nav-dashboard">
+                        📊 Dashboard
+                    </button>
+                    <button onclick="showPage('campaigns')" class="nav-item px-4 py-2 rounded-lg font-medium" id="nav-campaigns">
+                        🎯 Campaigns
+                    </button>
+                    <button onclick="showPage('bookings')" class="nav-item px-4 py-2 rounded-lg font-medium" id="nav-bookings">
+                        📅 Bookings
+                    </button>
+                    <button onclick="showPage('analytics')" class="nav-item px-4 py-2 rounded-lg font-medium" id="nav-analytics">
+                        📈 Analytics
+                    </button>
+                    <button onclick="showPage('integrations')" class="nav-item px-4 py-2 rounded-lg font-medium" id="nav-integrations">
+                        🔗 Integrations
+                    </button>
+                    <button onclick="showPage('settings')" class="nav-item px-4 py-2 rounded-lg font-medium" id="nav-settings">
+                        ⚙️ Settings
+                    </button>
+                </div>
+
+                <!-- User Menu -->
+                <div class="flex items-center space-x-4">
+                    <span class="text-sm text-gray-600">Elite Cuts Barbershop</span>
+                    <div class="w-8 h-8 bg-gray-300 rounded-full"></div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content Area -->
+    <main class="max-w-7xl mx-auto px-4 py-8">
+        <!-- Dashboard Page -->
+        <div id="page-dashboard" class="page-content">
+            <div class="mb-8">
+                <h2 class="text-3xl font-bold text-gray-900 mb-2">Attribution Dashboard</h2>
+                <p class="text-gray-600">Track your marketing performance and booking attribution</p>
+            </div>
+
+            <!-- Key Metrics Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <div class="bg-white rounded-xl shadow-lg p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-sm font-medium text-gray-500">This Month's Revenue</h3>
+                        <span class="text-2xl">💰</span>
+                    </div>
+                    <p class="text-3xl font-bold text-gray-900" id="monthly-revenue">$12,847</p>
+                    <p class="text-sm text-green-600 mt-2">+23% from last month</p>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-lg p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-sm font-medium text-gray-500">Bookings This Week</h3>
+                        <span class="text-2xl">📅</span>
+                    </div>
+                    <p class="text-3xl font-bold text-gray-900" id="weekly-bookings">47</p>
+                    <p class="text-sm text-green-600 mt-2">+12% from last week</p>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-lg p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-sm font-medium text-gray-500">Attribution Accuracy</h3>
+                        <span class="text-2xl">🎯</span>
+                    </div>
+                    <p class="text-3xl font-bold text-gray-900">92.3%</p>
+                    <p class="text-sm text-blue-600 mt-2">vs 45% industry avg</p>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-lg p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-sm font-medium text-gray-500">Ad Spend ROI</h3>
+                        <span class="text-2xl">📊</span>
+                    </div>
+                    <p class="text-3xl font-bold text-gray-900">287%</p>
+                    <p class="text-sm text-green-600 mt-2">$2.87 return per $1 spent</p>
+                </div>
+            </div>
+
+            <!-- Recent Activity -->
+            <div class="bg-white rounded-xl shadow-lg p-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">Recent Attribution Matches</h3>
+                <div class="space-y-4">
+                    <div class="flex items-center justify-between py-3 border-b border-gray-100">
+                        <div>
+                            <p class="font-medium text-gray-900">Premium Cut & Styling - $85</p>
+                            <p class="text-sm text-gray-500">Facebook Ad → Square Booking</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-sm font-medium text-green-600">96.8% confidence</p>
+                            <p class="text-xs text-gray-500">2 minutes ago</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-between py-3 border-b border-gray-100">
+                        <div>
+                            <p class="font-medium text-gray-900">Beard Trim - $35</p>
+                            <p class="text-sm text-gray-500">Google Search → Phone Call</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-sm font-medium text-green-600">89.2% confidence</p>
+                            <p class="text-xs text-gray-500">15 minutes ago</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Campaigns Page -->
+        <div id="page-campaigns" class="page-content hidden">
+            <div class="mb-8">
+                <h2 class="text-3xl font-bold text-gray-900 mb-2">Campaign Performance</h2>
+                <p class="text-gray-600">Monitor and optimize your advertising campaigns</p>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-lg p-6">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-lg font-semibold text-gray-900">Active Campaigns</h3>
+                    <button class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+                        + New Campaign
+                    </button>
+                </div>
+
+                <div class="space-y-4">
+                    <div class="border border-gray-200 rounded-lg p-4">
+                        <div class="flex justify-between items-start mb-4">
+                            <div>
+                                <h4 class="font-semibold text-gray-900">Facebook - Summer Promotion</h4>
+                                <p class="text-sm text-gray-500">Running for 12 days</p>
+                            </div>
+                            <span class="bg-green-100 text-green-800 text-xs font-medium px-2 py-1 rounded-full">Active</span>
+                        </div>
+                        <div class="grid grid-cols-4 gap-4 text-center">
+                            <div>
+                                <p class="text-2xl font-bold text-gray-900">$1,247</p>
+                                <p class="text-xs text-gray-500">Spend</p>
+                            </div>
+                            <div>
+                                <p class="text-2xl font-bold text-gray-900">23</p>
+                                <p class="text-xs text-gray-500">Bookings</p>
+                            </div>
+                            <div>
+                                <p class="text-2xl font-bold text-gray-900">$54.20</p>
+                                <p class="text-xs text-gray-500">Cost/Booking</p>
+                            </div>
+                            <div>
+                                <p class="text-2xl font-bold text-gray-900">287%</p>
+                                <p class="text-xs text-gray-500">ROI</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bookings Page -->
+        <div id="page-bookings" class="page-content hidden">
+            <div class="mb-8">
+                <h2 class="text-3xl font-bold text-gray-900 mb-2">Recent Bookings</h2>
+                <p class="text-gray-600">Track bookings and their attribution sources</p>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Service</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Attribution Source</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Confidence</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        <tr>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">John D.</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Premium Cut</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">$85</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Facebook Ads</td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span class="bg-green-100 text-green-800 text-xs font-medium px-2 py-1 rounded-full">96.8%</span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Mike R.</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Beard Trim</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">$35</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Google Search</td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span class="bg-yellow-100 text-yellow-800 text-xs font-medium px-2 py-1 rounded-full">89.2%</span>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Analytics Page -->
+        <div id="page-analytics" class="page-content hidden">
+            <div class="mb-8">
+                <h2 class="text-3xl font-bold text-gray-900 mb-2">Advanced Analytics</h2>
+                <p class="text-gray-600">Deep dive into your attribution data and trends</p>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div class="bg-white rounded-xl shadow-lg p-6">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Attribution Models</h3>
+                    <div class="space-y-3">
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-gray-600">ML-Enhanced</span>
+                            <span class="font-medium">96.7% accuracy</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-gray-600">Time-Decay</span>
+                            <span class="font-medium">94.3% accuracy</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-gray-600">Linear</span>
+                            <span class="font-medium">92.1% accuracy</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-lg p-6">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Platform Performance</h3>
+                    <div class="space-y-3">
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-gray-600">Facebook Ads</span>
+                            <span class="font-medium text-green-600">94.1% accuracy</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-gray-600">Google Ads</span>
+                            <span class="font-medium text-green-600">89.7% accuracy</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-gray-600">Square Bookings</span>
+                            <span class="font-medium text-green-600">96.2% accuracy</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Integrations Page -->
+        <div id="page-integrations" class="page-content hidden">
+            <div class="mb-8">
+                <h2 class="text-3xl font-bold text-gray-900 mb-2">Platform Integrations</h2>
+                <p class="text-gray-600">Manage your connected platforms and data sources</p>
+            </div>
+
+            <!-- Integration Status Loading -->
+            <div id="integration-loading" class="text-center py-8">
+                <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+                <p class="text-gray-600 mt-4">Loading integration status...</p>
+            </div>
+
+            <!-- Integration Cards -->
+            <div id="integration-cards" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 hidden">
+                <!-- Cards will be populated by JavaScript -->
+            </div>
+
+            <!-- Setup Guide Section -->
+            <div id="setup-guide" class="mt-12 bg-blue-50 rounded-xl p-6 hidden">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">🚀 Quick Setup Guide</h3>
+                <p class="text-gray-600 mb-4">To start processing real business data, configure your API integrations:</p>
+                <div class="bg-white rounded-lg p-4 mb-4">
+                    <h4 class="font-medium text-gray-900 mb-2">Interactive Setup Script</h4>
+                    <p class="text-sm text-gray-600 mb-3">Run our automated setup script to configure all integrations:</p>
+                    <code class="bg-gray-100 px-3 py-2 rounded text-sm block">cd scripts && ./setup-real-data-integration.sh</code>
+                </div>
+                <button onclick="showSetupGuide()" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+                    View Detailed Setup Instructions
+                </button>
+            </div>
+        </div>
+
+        <!-- Settings Page -->
+        <div id="page-settings" class="page-content hidden">
+            <div class="mb-8">
+                <h2 class="text-3xl font-bold text-gray-900 mb-2">Settings</h2>
+                <p class="text-gray-600">Configure your attribution tracking preferences</p>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-lg p-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-6">Business Information</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Business Name</label>
+                        <input type="text" value="Elite Cuts Barbershop" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Attribution Model</label>
+                        <select class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option>ML-Enhanced (Recommended)</option>
+                            <option>Time-Decay</option>
+                            <option>Linear</option>
+                            <option>First-Touch</option>
+                            <option>Last-Touch</option>
+                        </select>
+                    </div>
+                </div>
+                <button class="mt-6 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700">
+                    Save Settings
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Page navigation functionality
+        function showPage(pageId) {
+            // Hide all pages
+            document.querySelectorAll('.page-content').forEach(page => {
+                page.classList.add('hidden');
+            });
+            
+            // Remove active state from all nav items
+            document.querySelectorAll('.nav-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            
+            // Show selected page
+            document.getElementById('page-' + pageId).classList.remove('hidden');
+            document.getElementById('page-' + pageId).classList.add('fade-in');
+            
+            // Add active state to clicked nav item
+            document.getElementById('nav-' + pageId).classList.add('active');
+        }
+
+        // Initialize with dashboard page
+        showPage('dashboard');
+
+        // Simulate real-time data updates
+        function updateMetrics() {
+            const revenue = document.getElementById('monthly-revenue');
+            const bookings = document.getElementById('weekly-bookings');
+            
+            if (revenue) {
+                const currentRevenue = parseInt(revenue.textContent.replace('$', '').replace(',', ''));
+                revenue.textContent = '$' + (currentRevenue + Math.floor(Math.random() * 100)).toLocaleString();
+            }
+            
+            if (bookings) {
+                const currentBookings = parseInt(bookings.textContent);
+                bookings.textContent = currentBookings + Math.floor(Math.random() * 3);
+            }
+        }
+
+        // Update metrics every 30 seconds
+        setInterval(updateMetrics, 30000);
+
+        // Integration management functions
+        async function loadIntegrationStatus() {
+            try {
+                const response = await fetch('http://localhost:8001/api/v1/integrations/status');
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayIntegrationCards(data.data);
+                    updateSetupGuide(data.data);
+                } else {
+                    console.error('Failed to load integration status');
+                }
+            } catch (error) {
+                console.error('Error loading integration status:', error);
+                // Show default cards with setup required status
+                displayIntegrationCards({
+                    facebook_ads: { configured: false, status: "setup_required", description: "Facebook Ads API for conversion tracking" },
+                    square_booking: { configured: false, status: "setup_required", description: "Square Bookings API for appointment data" },
+                    google_ads: { configured: false, status: "setup_required", description: "Google Ads API for search attribution" }
+                });
+            }
+        }
+
+        function displayIntegrationCards(integrations) {
+            const cardsContainer = document.getElementById('integration-cards');
+            const loadingContainer = document.getElementById('integration-loading');
+            
+            // Hide loading, show cards
+            loadingContainer.classList.add('hidden');
+            cardsContainer.classList.remove('hidden');
+            
+            // Clear existing cards
+            cardsContainer.innerHTML = '';
+            
+            // Integration display configuration
+            const integrationConfig = {
+                facebook_ads: { name: 'Facebook Ads', icon: '📱', action: 'Manage Integration' },
+                square_booking: { name: 'Square', icon: '🏪', action: 'Manage Integration' },
+                google_ads: { name: 'Google Ads', icon: '🔍', action: 'Connect Now' }
+            };
+            
+            // Create cards for each integration
+            Object.entries(integrations).forEach(([key, integration]) => {
+                const config = integrationConfig[key];
+                if (!config) return;
+                
+                const statusClass = integration.configured ? 
+                    'bg-green-100 text-green-800' : 
+                    'bg-yellow-100 text-yellow-800';
+                const statusText = integration.configured ? 'Connected' : 'Setup Required';
+                const buttonClass = integration.configured ? 
+                    'bg-blue-600 hover:bg-blue-700' : 
+                    'bg-gray-600 hover:bg-gray-700';
+                
+                const card = document.createElement('div');
+                card.className = 'bg-white rounded-xl shadow-lg p-6';
+                card.innerHTML = `
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center space-x-3">
+                            <span class="text-2xl">${config.icon}</span>
+                            <h3 class="font-semibold text-gray-900">${config.name}</h3>
+                        </div>
+                        <span class="${statusClass} text-xs font-medium px-2 py-1 rounded-full">${statusText}</span>
+                    </div>
+                    <p class="text-sm text-gray-600 mb-4">${integration.description}</p>
+                    <button class="w-full ${buttonClass} text-white py-2 rounded-lg" onclick="manageIntegration('${key}', ${integration.configured})">
+                        ${config.action}
+                    </button>
+                `;
+                cardsContainer.appendChild(card);
+            });
+        }
+
+        function updateSetupGuide(integrations) {
+            const setupGuide = document.getElementById('setup-guide');
+            const totalIntegrations = Object.keys(integrations).length;
+            const configuredIntegrations = Object.values(integrations).filter(i => i.configured).length;
+            
+            // Show setup guide if not all integrations are configured
+            if (configuredIntegrations < totalIntegrations) {
+                setupGuide.classList.remove('hidden');
+            } else {
+                setupGuide.classList.add('hidden');
+            }
+        }
+
+        function manageIntegration(integrationKey, isConfigured) {
+            if (isConfigured) {
+                alert(`${integrationKey} is connected and working properly!`);
+            } else {
+                showSetupGuide(integrationKey);
+            }
+        }
+
+        async function showSetupGuide(specificIntegration = null) {
+            try {
+                const response = await fetch('http://localhost:8001/api/v1/integrations/setup-guide');
+                const data = await response.json();
+                
+                if (data.success) {
+                    displaySetupModal(data.data, specificIntegration);
+                }
+            } catch (error) {
+                console.error('Error loading setup guide:', error);
+                alert('Unable to load setup guide. Please check the backend connection.');
+            }
+        }
+
+        function displaySetupModal(setupData, specificIntegration) {
+            // For now, show a simple alert with setup information
+            const integrations = specificIntegration ? 
+                { [specificIntegration]: setupData[specificIntegration] } : 
+                setupData;
+            
+            let message = 'Setup Instructions:\n\n';
+            Object.entries(integrations).forEach(([key, config]) => {
+                if (config && config.setup_steps) {
+                    message += `${key.toUpperCase()}:\n`;
+                    config.setup_steps.forEach(step => {
+                        message += `${step}\n`;
+                    });
+                    message += `\nDocumentation: ${config.documentation_url}\n\n`;
+                }
+            });
+            
+            message += `\nQuick Setup: Run "${setupData.quick_setup?.command}" in your terminal`;
+            alert(message);
+        }
+
+        // Load integration status when integrations page is shown
+        function showPage(pageId) {
+            // Hide all pages
+            document.querySelectorAll('.page-content').forEach(page => {
+                page.classList.add('hidden');
+            });
+            
+            // Remove active state from all nav items
+            document.querySelectorAll('.nav-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            
+            // Show selected page
+            document.getElementById('page-' + pageId).classList.remove('hidden');
+            document.getElementById('page-' + pageId).classList.add('fade-in');
+            
+            // Add active state to clicked nav item
+            document.getElementById('nav-' + pageId).classList.add('active');
+            
+            // Load integration data when integrations page is shown
+            if (pageId === 'integrations') {
+                loadIntegrationStatus();
+            }
+        }
+    </script>
+</body>
+</html>

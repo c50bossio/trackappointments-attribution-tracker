@@ -1,0 +1,156 @@
+# Pod Security Policy for BookingBridge
+
+# Pod Security Standards - Restricted Policy
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: bookingbridge
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+
+---
+# Service Account for restricted access
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: bookingbridge-app
+  namespace: bookingbridge
+automountServiceAccountToken: false
+
+---
+# Role with minimal permissions
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: bookingbridge
+  name: bookingbridge-role
+rules:
+- apiGroups: [""]
+  resources: ["configmaps", "secrets"]
+  verbs: ["get", "list"]
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list"]
+
+---
+# Role binding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: bookingbridge-rolebinding
+  namespace: bookingbridge
+subjects:
+- kind: ServiceAccount
+  name: bookingbridge-app
+  namespace: bookingbridge
+roleRef:
+  kind: Role
+  name: bookingbridge-role
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# Security Context Constraints (if using OpenShift)
+apiVersion: security.openshift.io/v1
+kind: SecurityContextConstraints
+metadata:
+  name: bookingbridge-scc
+allowHostDirVolumePlugin: false
+allowHostIPC: false
+allowHostNetwork: false
+allowHostPID: false
+allowHostPorts: false
+allowPrivilegedContainer: false
+allowedCapabilities: []
+defaultAddCapabilities: []
+requiredDropCapabilities:
+- ALL
+runAsUser:
+  type: MustRunAsRange
+  uidRangeMin: 1000
+  uidRangeMax: 65535
+runAsGroup:
+  type: MustRunAsRange
+  gidRangeMin: 1000
+  gidRangeMax: 65535
+seLinuxContext:
+  type: MustRunAs
+fsGroup:
+  type: MustRunAs
+  ranges:
+  - min: 1000
+    max: 65535
+volumes:
+- configMap
+- downwardAPI
+- emptyDir
+- persistentVolumeClaim
+- projected
+- secret
+
+---
+# Admission Controller - Gatekeeper Policy (if using OPA Gatekeeper)
+apiVersion: templates.gatekeeper.sh/v1beta1
+kind: ConstraintTemplate
+metadata:
+  name: k8srequiredsecuritycontext
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sRequiredSecurityContext
+      validation:
+        type: object
+        properties:
+          runAsNonRoot:
+            type: boolean
+          runAsUser:
+            type: object
+            properties:
+              rule:
+                type: string
+              ranges:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    min:
+                      type: integer
+                    max:
+                      type: integer
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8srequiredsecuritycontext
+        
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+          not container.securityContext.runAsNonRoot == true
+          msg := "Container must run as non-root user"
+        }
+        
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+          container.securityContext.runAsUser < 1000
+          msg := "Container must run with UID >= 1000"
+        }
+
+---
+# Apply security context constraint
+apiVersion: config.gatekeeper.sh/v1alpha1
+kind: K8sRequiredSecurityContext
+metadata:
+  name: must-run-as-nonroot
+spec:
+  match:
+    - apiGroups: [""]
+      kinds: ["Pod"]
+      namespaces: ["bookingbridge"]
+  parameters:
+    runAsNonRoot: true
+    runAsUser:
+      rule: "MustRunAs"
+      ranges:
+        - min: 1000
+          max: 65535

@@ -1,0 +1,211 @@
+# Ingress Configuration for BookingBridge
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: bookingbridge-ingress
+  namespace: bookingbridge
+  labels:
+    app.kubernetes.io/name: bookingbridge-ingress
+    app.kubernetes.io/instance: production
+    app.kubernetes.io/component: ingress
+  annotations:
+    # Ingress Controller
+    kubernetes.io/ingress.class: "nginx"
+    
+    # SSL Configuration
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    
+    # Security Headers
+    nginx.ingress.kubernetes.io/server-snippet: |
+      add_header X-Frame-Options "SAMEORIGIN" always;
+      add_header X-Content-Type-Options "nosniff" always;
+      add_header X-XSS-Protection "1; mode=block" always;
+      add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+      add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https:; frame-ancestors 'self';" always;
+      add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+    
+    # Rate Limiting
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+    nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+    nginx.ingress.kubernetes.io/rate-limit-connections: "10"
+    
+    # Performance
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "30"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    
+    # Compression
+    nginx.ingress.kubernetes.io/enable-gzip: "true"
+    nginx.ingress.kubernetes.io/gzip-types: "application/javascript,application/json,application/xml,text/css,text/javascript,text/plain,text/xml"
+    
+    # Backend Protocol
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+    
+    # Session Affinity (if needed)
+    nginx.ingress.kubernetes.io/affinity: "cookie"
+    nginx.ingress.kubernetes.io/session-cookie-name: "bookingbridge-affinity"
+    nginx.ingress.kubernetes.io/session-cookie-expires: "86400"
+    nginx.ingress.kubernetes.io/session-cookie-max-age: "86400"
+    nginx.ingress.kubernetes.io/session-cookie-path: "/"
+    
+spec:
+  tls:
+  - hosts:
+    - bookingbridge.com
+    - www.bookingbridge.com
+    secretName: bookingbridge-tls
+  
+  rules:
+  # Main production domain
+  - host: bookingbridge.com
+    http:
+      paths:
+      # API routes to backend
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: bookingbridge-backend
+            port:
+              number: 8000
+      
+      # Health check endpoint
+      - path: /health
+        pathType: Exact
+        backend:
+          service:
+            name: bookingbridge-backend
+            port:
+              number: 8000
+      
+      # Metrics endpoint (restricted)
+      - path: /metrics
+        pathType: Exact
+        backend:
+          service:
+            name: bookingbridge-backend
+            port:
+              number: 8000
+      
+      # All other routes to frontend
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: bookingbridge-frontend
+            port:
+              number: 3000
+  
+  # WWW redirect
+  - host: www.bookingbridge.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: bookingbridge-frontend
+            port:
+              number: 3000
+
+---
+# Staging Ingress
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: bookingbridge-staging-ingress
+  namespace: bookingbridge
+  labels:
+    app.kubernetes.io/name: bookingbridge-staging-ingress
+    app.kubernetes.io/instance: staging
+    app.kubernetes.io/component: ingress
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    cert-manager.io/cluster-issuer: "letsencrypt-staging"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    
+    # Basic Auth for staging
+    nginx.ingress.kubernetes.io/auth-type: basic
+    nginx.ingress.kubernetes.io/auth-secret: staging-basic-auth
+    nginx.ingress.kubernetes.io/auth-realm: "BookingBridge Staging Environment"
+    
+    # Relaxed rate limiting for testing
+    nginx.ingress.kubernetes.io/rate-limit: "200"
+    nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+    
+    # Development headers
+    nginx.ingress.kubernetes.io/server-snippet: |
+      add_header X-Environment "staging" always;
+      add_header X-Frame-Options "SAMEORIGIN" always;
+      add_header X-Content-Type-Options "nosniff" always;
+    
+spec:
+  tls:
+  - hosts:
+    - staging.bookingbridge.com
+    secretName: bookingbridge-staging-tls
+  
+  rules:
+  - host: staging.bookingbridge.com
+    http:
+      paths:
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: bookingbridge-backend
+            port:
+              number: 8000
+      - path: /health
+        pathType: Exact
+        backend:
+          service:
+            name: bookingbridge-backend
+            port:
+              number: 8000
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: bookingbridge-frontend
+            port:
+              number: 3000
+
+---
+# Network Policy for Ingress
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: bookingbridge-ingress-policy
+  namespace: bookingbridge
+  labels:
+    app.kubernetes.io/name: bookingbridge-ingress
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/part-of: attribution-tracker
+  policyTypes:
+  - Ingress
+  ingress:
+  # Allow ingress controller
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+  # Allow monitoring
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+    ports:
+    - protocol: TCP
+      port: 8000  # Backend metrics
+  # Allow internal communication
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/part-of: attribution-tracker

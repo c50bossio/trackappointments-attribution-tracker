@@ -1,0 +1,33 @@
+🔑 QUICK CLOUDFLARE TOKEN CREATION
+
+1. Go to: https://dash.cloudflare.com/profile/api-tokens
+
+2. Click: "Create Token"
+
+3. Click: "Custom token"
+
+4. Name: "TrackAppointments DNS"
+
+5. PERMISSIONS SECTION - Add these 2:
+   ┌─────────────────────────────────────┐
+   │ Zone | Zone Settings | Read         │
+   │ Zone | DNS          | Edit   ← KEY! │
+   └─────────────────────────────────────┘
+
+6. ZONE RESOURCES SECTION:
+   ┌─────────────────────────────────────┐
+   │ Include | Specific zone             │
+   │         | trackappointments.com     │
+   └─────────────────────────────────────┘
+
+7. Click: "Continue to summary"
+
+8. Click: "Create Token" 
+
+9. COPY THE TOKEN (you won't see it again!)
+
+10. Run: ./auto-dns-setup.sh
+
+11. Paste the token when prompted
+
+THAT'S IT! 🎉

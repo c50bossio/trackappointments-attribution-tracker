@@ -1,0 +1,59 @@
+{
+  "domain": "trackappointments.com",
+  "dns_records": [
+    {
+      "type": "A",
+      "name": "@",
+      "value": "65.50.128.210",
+      "proxy": true,
+      "comment": "Main application (trackappointments.com)"
+    },
+    {
+      "type": "CNAME", 
+      "name": "www",
+      "value": "trackappointments.com",
+      "proxy": true,
+      "comment": "WWW redirect"
+    },
+    {
+      "type": "A",
+      "name": "api",
+      "value": "65.50.128.210", 
+      "proxy": true,
+      "comment": "API endpoints (api.trackappointments.com)"
+    },
+    {
+      "type": "A",
+      "name": "staging",
+      "value": "65.50.128.210",
+      "proxy": true,
+      "comment": "Staging environment (staging.trackappointments.com)"
+    },
+    {
+      "type": "A",
+      "name": "admin",
+      "value": "65.50.128.210",
+      "proxy": true,
+      "comment": "Admin dashboard (admin.trackappointments.com)"
+    }
+  ],
+  "cloudflare_settings": {
+    "ssl": {
+      "mode": "Full (strict)",
+      "always_use_https": true,
+      "hsts": true,
+      "min_tls_version": "1.2",
+      "tls_1_3": true
+    },
+    "security": {
+      "waf": true,
+      "bot_protection": true,
+      "ddos_protection": true
+    },
+    "performance": {
+      "auto_minify": ["css", "html", "js"],
+      "brotli": true,
+      "caching_level": "Standard"
+    }
+  }
+}

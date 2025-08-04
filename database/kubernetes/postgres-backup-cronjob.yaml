@@ -1,0 +1,423 @@
+# Kubernetes CronJob for automated PostgreSQL backups
+
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: bookingbridge-db-backup
+  namespace: bookingbridge
+  labels:
+    app.kubernetes.io/name: bookingbridge-db-backup
+    app.kubernetes.io/component: backup
+    app.kubernetes.io/part-of: attribution-tracker
+spec:
+  # Run daily at 2 AM UTC
+  schedule: "0 2 * * *"
+  timeZone: "UTC"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  startingDeadlineSeconds: 300
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 3600  # 1 hour timeout
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: bookingbridge-db-backup
+            app.kubernetes.io/component: backup
+        spec:
+          restartPolicy: OnFailure
+          
+          # Security context
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+          
+          # Service account with minimal permissions
+          serviceAccountName: bookingbridge-backup
+          
+          containers:
+          - name: db-backup
+            image: postgres:15-alpine
+            imagePullPolicy: IfNotPresent
+            
+            # Security context
+            securityContext:
+              runAsNonRoot: true
+              runAsUser: 1000
+              runAsGroup: 1000
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop:
+                - ALL
+            
+            # Environment variables
+            env:
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: bookingbridge-secrets
+                  key: POSTGRES_PASSWORD
+            - name: DB_HOST
+              value: "bookingbridge-postgresql"
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              value: "bookingbridge"
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: bookingbridge-secrets
+                  key: POSTGRES_USER
+            - name: BACKUP_DIR
+              value: "/backups"
+            - name: S3_BUCKET
+              value: "bookingbridge-backups-prod"
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: bookingbridge-backup-secrets
+                  key: AWS_ACCESS_KEY_ID
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: bookingbridge-backup-secrets
+                  key: AWS_SECRET_ACCESS_KEY
+            - name: AWS_DEFAULT_REGION
+              value: "us-east-1"
+            - name: RETENTION_DAYS
+              value: "30"
+            
+            # Resource limits
+            resources:
+              requests:
+                cpu: 500m
+                memory: 1Gi
+              limits:
+                cpu: 1000m
+                memory: 2Gi
+            
+            # Command to run the backup
+            command:
+            - /bin/sh
+            - -c
+            - |
+              set -euo pipefail
+              
+              # Install AWS CLI
+              apk add --no-cache aws-cli curl
+              
+              # Create backup filename
+              BACKUP_DATE=$(date '+%Y%m%d_%H%M%S')
+              BACKUP_FILE="$BACKUP_DIR/bookingbridge_${BACKUP_DATE}.sql"
+              COMPRESSED_FILE="${BACKUP_FILE}.gz"
+              
+              echo "Starting database backup at $(date)"
+              echo "Backup file: $BACKUP_FILE"
+              
+              # Create the backup
+              pg_dump \
+                --host="$DB_HOST" \
+                --port="$DB_PORT" \
+                --username="$DB_USER" \
+                --dbname="$DB_NAME" \
+                --verbose \
+                --no-password \
+                --format=custom \
+                --compress=9 \
+                --lock-wait-timeout=30000 \
+                --file="$BACKUP_FILE"
+              
+              if [ $? -eq 0 ]; then
+                echo "Database backup created successfully"
+                
+                # Compress the backup
+                echo "Compressing backup..."
+                gzip "$BACKUP_FILE"
+                BACKUP_FILE="$COMPRESSED_FILE"
+                
+                # Create checksum
+                sha256sum "$BACKUP_FILE" > "${BACKUP_FILE}.sha256"
+                
+                # Get backup size
+                BACKUP_SIZE=$(du -h "$BACKUP_FILE" | cut -f1)
+                echo "Compressed backup size: $BACKUP_SIZE"
+                
+                # Upload to S3
+                echo "Uploading backup to S3..."
+                S3_KEY="bookingbridge/$(basename "$BACKUP_FILE")"
+                
+                if aws s3 cp "$BACKUP_FILE" "s3://$S3_BUCKET/$S3_KEY" --storage-class STANDARD_IA; then
+                  echo "Backup uploaded to S3: s3://$S3_BUCKET/$S3_KEY"
+                  
+                  # Upload checksum
+                  aws s3 cp "${BACKUP_FILE}.sha256" "s3://$S3_BUCKET/${S3_KEY}.sha256" --storage-class STANDARD_IA
+                  
+                  # Clean up old S3 backups
+                  echo "Cleaning up old S3 backups..."
+                  CUTOFF_DATE=$(date -d "$RETENTION_DAYS days ago" +%Y-%m-%d)
+                  aws s3api list-objects-v2 \
+                    --bucket "$S3_BUCKET" \
+                    --prefix "bookingbridge/" \
+                    --query "Contents[?LastModified<=\`$CUTOFF_DATE\`].[Key]" \
+                    --output text | while read -r key; do
+                      if [ -n "$key" ] && [ "$key" != "None" ]; then
+                        echo "Deleting old backup: $key"
+                        aws s3 rm "s3://$S3_BUCKET/$key"
+                      fi
+                    done
+                  
+                  echo "Backup process completed successfully"
+                  
+                  # Send success notification (optional webhook)
+                  if [ -n "${NOTIFICATION_WEBHOOK:-}" ]; then
+                    curl -X POST "$NOTIFICATION_WEBHOOK" \
+                      -H "Content-Type: application/json" \
+                      -d "{\"status\": \"success\", \"message\": \"Database backup completed: $(basename "$BACKUP_FILE")\", \"service\": \"bookingbridge-backup\"}" \
+                      || echo "Warning: Failed to send notification"
+                  fi
+                else
+                  echo "ERROR: Failed to upload backup to S3"
+                  exit 1
+                fi
+              else
+                echo "ERROR: Database backup failed"
+                exit 1
+              fi
+            
+            # Volume mounts
+            volumeMounts:
+            - name: backup-storage
+              mountPath: /backups
+            - name: tmp
+              mountPath: /tmp
+          
+          volumes:
+          - name: backup-storage
+            persistentVolumeClaim:
+              claimName: backup-storage-pvc
+          - name: tmp
+            emptyDir: {}
+
+---
+# PVC for backup storage
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: backup-storage-pvc
+  namespace: bookingbridge
+  labels:
+    app.kubernetes.io/name: bookingbridge-backup
+    app.kubernetes.io/component: storage
+spec:
+  accessModes:
+  - ReadWriteOnce
+  storageClassName: "fast-ssd"
+  resources:
+    requests:
+      storage: 100Gi
+
+---
+# Service account for backup job
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: bookingbridge-backup
+  namespace: bookingbridge
+  labels:
+    app.kubernetes.io/name: bookingbridge-backup
+    app.kubernetes.io/component: service-account
+automountServiceAccountToken: false
+
+---
+# Role for backup operations
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: bookingbridge
+  name: bookingbridge-backup-role
+  labels:
+    app.kubernetes.io/name: bookingbridge-backup
+    app.kubernetes.io/component: rbac
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "list"]
+- apiGroups: [""]
+  resources: ["persistentvolumeclaims"]
+  verbs: ["get", "list"]
+
+---
+# Role binding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: bookingbridge-backup-rolebinding
+  namespace: bookingbridge
+  labels:
+    app.kubernetes.io/name: bookingbridge-backup
+    app.kubernetes.io/component: rbac
+subjects:
+- kind: ServiceAccount
+  name: bookingbridge-backup
+  namespace: bookingbridge
+roleRef:
+  kind: Role
+  name: bookingbridge-backup-role
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# Secrets for backup operations
+apiVersion: v1
+kind: Secret
+metadata:
+  name: bookingbridge-backup-secrets
+  namespace: bookingbridge
+  labels:
+    app.kubernetes.io/name: bookingbridge-backup
+    app.kubernetes.io/component: secrets
+type: Opaque
+stringData:
+  AWS_ACCESS_KEY_ID: "REPLACE_WITH_ACTUAL_ACCESS_KEY"
+  AWS_SECRET_ACCESS_KEY: "REPLACE_WITH_ACTUAL_SECRET_KEY"
+  NOTIFICATION_WEBHOOK: "https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK"
+
+---
+# Manual backup job (for immediate backups)
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: bookingbridge-manual-backup
+  namespace: bookingbridge
+  labels:
+    app.kubernetes.io/name: bookingbridge-manual-backup
+    app.kubernetes.io/component: backup
+spec:
+  backoffLimit: 1
+  activeDeadlineSeconds: 3600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: bookingbridge-manual-backup
+        app.kubernetes.io/component: backup
+    spec:
+      restartPolicy: Never
+      
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      
+      serviceAccountName: bookingbridge-backup
+      
+      containers:
+      - name: manual-backup
+        image: postgres:15-alpine
+        imagePullPolicy: IfNotPresent
+        
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        
+        env:
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: bookingbridge-secrets
+              key: POSTGRES_PASSWORD
+        - name: DB_HOST
+          value: "bookingbridge-postgresql"
+        - name: DB_PORT
+          value: "5432"
+        - name: DB_NAME
+          value: "bookingbridge"
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: bookingbridge-secrets
+              key: POSTGRES_USER
+        - name: BACKUP_DIR
+          value: "/backups"
+        - name: S3_BUCKET
+          value: "bookingbridge-backups-prod"
+        - name: AWS_ACCESS_KEY_ID
+          valueFrom:
+            secretKeyRef:
+              name: bookingbridge-backup-secrets
+              key: AWS_ACCESS_KEY_ID
+        - name: AWS_SECRET_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: bookingbridge-backup-secrets
+              key: AWS_SECRET_ACCESS_KEY
+        - name: AWS_DEFAULT_REGION
+          value: "us-east-1"
+        
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: 1000m
+            memory: 2Gi
+        
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -euo pipefail
+          
+          apk add --no-cache aws-cli
+          
+          BACKUP_DATE=$(date '+%Y%m%d_%H%M%S')
+          BACKUP_FILE="$BACKUP_DIR/bookingbridge_manual_${BACKUP_DATE}.sql.gz"
+          
+          echo "Starting manual database backup at $(date)"
+          
+          pg_dump \
+            --host="$DB_HOST" \
+            --port="$DB_PORT" \
+            --username="$DB_USER" \
+            --dbname="$DB_NAME" \
+            --verbose \
+            --no-password \
+            --format=custom \
+            --compress=9 \
+            --lock-wait-timeout=30000 | gzip > "$BACKUP_FILE"
+          
+          if [ $? -eq 0 ]; then
+            echo "Manual backup created successfully: $(basename "$BACKUP_FILE")"
+            
+            # Upload to S3
+            S3_KEY="bookingbridge/manual/$(basename "$BACKUP_FILE")"
+            aws s3 cp "$BACKUP_FILE" "s3://$S3_BUCKET/$S3_KEY" --storage-class STANDARD_IA
+            
+            echo "Manual backup completed and uploaded to S3"
+          else
+            echo "ERROR: Manual backup failed"
+            exit 1
+          fi
+        
+        volumeMounts:
+        - name: backup-storage
+          mountPath: /backups
+        - name: tmp
+          mountPath: /tmp
+      
+      volumes:
+      - name: backup-storage
+        persistentVolumeClaim:
+          claimName: backup-storage-pvc
+      - name: tmp
+        emptyDir: {}
