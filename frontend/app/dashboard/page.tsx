@@ -23,6 +23,13 @@ interface Attribution {
   attribution_confidence: number
 }
 
+interface OAuthConnection {
+  provider: string
+  status: string
+  account_name?: string
+  last_sync?: string
+}
+
 export default function Dashboard() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
   const [attributions, setAttributions] = useState<Attribution[]>([])
@@ -54,8 +61,8 @@ export default function Dashboard() {
       const data = await response.json()
       
       if (response.ok) {
-        const newStatus = {}
-        data.connections.forEach(conn => {
+        const newStatus: any = {}
+        data.connections.forEach((conn: OAuthConnection) => {
           newStatus[conn.provider] = {
             connected: conn.status === 'connected',
             loading: false,
