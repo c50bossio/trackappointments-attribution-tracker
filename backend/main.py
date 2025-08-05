@@ -1,5 +1,5 @@
 """
-BookingBridge Attribution Tracker Backend
+TrackAppointments Attribution Tracker Backend
 Main FastAPI application entry point
 """
 
@@ -36,8 +36,8 @@ app_start_time = time.time()
 
 # Create FastAPI application
 app = FastAPI(
-    title="BookingBridge Attribution Tracker",
-    description="Attribution tracking platform bridging ad platforms and booking systems",
+    title="TrackAppointments Attribution Tracker",
+    description="Professional appointment attribution tracking platform",
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc"
@@ -971,7 +971,7 @@ async def clear_cache():
 async def root():
     """Root endpoint"""
     return {
-        "message": "BookingBridge Attribution Tracker API",
+        "message": "TrackAppointments Attribution Tracker API",
         "version": "1.0.0",
         "docs": "/docs",
         "health": "/health"

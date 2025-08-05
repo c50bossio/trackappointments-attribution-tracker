@@ -2,10 +2,10 @@ import type { Metadata } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'BookingBridge Attribution Tracker',
-  description: 'Attribution tracking platform bridging ad platforms and booking systems',
-  keywords: 'attribution tracking, marketing analytics, booking conversion',
-  authors: [{ name: 'BookingBridge Team' }],
+  title: 'TrackAppointments Attribution Tracker',
+  description: 'Professional appointment attribution tracking platform',
+  keywords: 'appointment tracking, attribution analytics, appointment conversion',
+  authors: [{ name: 'TrackAppointments Team' }],
   viewport: 'width=device-width, initial-scale=1',
 }
 
