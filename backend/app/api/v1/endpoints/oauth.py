@@ -283,11 +283,24 @@ async def get_oauth_status(business_id: str):
         # For demo, return mixed connected/disconnected status
         
         connections = []
+        # Check for real access tokens to determine actual connection status
         demo_statuses = {
-            "facebook": {"connected": True, "account": "Demo Barbershop FB Ads"},
-            "google": {"connected": True, "account": "Demo Google Ads Account"},
-            "square": {"connected": False, "account": None},
-            "stripe": {"connected": True, "account": "Demo Stripe Account"}
+            "facebook": {
+                "connected": bool(os.getenv("FACEBOOK_ACCESS_TOKEN")) and os.getenv("FACEBOOK_ACCESS_TOKEN") != "demo-facebook-access-token",
+                "account": "Demo Barbershop FB Ads" if bool(os.getenv("FACEBOOK_ACCESS_TOKEN")) else None
+            },
+            "google": {
+                "connected": bool(os.getenv("GOOGLE_ACCESS_TOKEN")) and os.getenv("GOOGLE_ACCESS_TOKEN") != "demo-google-access-token",
+                "account": "Demo Google Ads Account" if bool(os.getenv("GOOGLE_ACCESS_TOKEN")) else None
+            },
+            "square": {
+                "connected": bool(os.getenv("SQUARE_ACCESS_TOKEN")) and os.getenv("SQUARE_ACCESS_TOKEN") != "demo-square-access-token",
+                "account": "Demo Square Payments Account" if bool(os.getenv("SQUARE_ACCESS_TOKEN")) else None
+            },
+            "stripe": {
+                "connected": bool(os.getenv("STRIPE_ACCESS_TOKEN")) and os.getenv("STRIPE_ACCESS_TOKEN") != "demo-stripe-access-token",
+                "account": "Demo Stripe Account" if bool(os.getenv("STRIPE_ACCESS_TOKEN")) else None
+            }
         }
         
         for provider, config in OAUTH_CONFIGS.items():
