@@ -30,6 +30,17 @@ interface OAuthConnection {
   last_sync?: string
 }
 
+interface OAuthProviderStatus {
+  connected: boolean
+  loading: boolean
+  account_name?: string
+  last_sync?: string
+}
+
+interface OAuthStatusState {
+  [key: string]: OAuthProviderStatus
+}
+
 export default function Dashboard() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
   const [attributions, setAttributions] = useState<Attribution[]>([])
@@ -46,7 +57,7 @@ export default function Dashboard() {
   const [savingSettings, setSavingSettings] = useState(false)
   
   // OAuth connection state
-  const [oauthStatus, setOauthStatus] = useState({
+  const [oauthStatus, setOauthStatus] = useState<OAuthStatusState>({
     facebook: { connected: false, loading: false },
     google: { connected: false, loading: false },
     square: { connected: false, loading: false },
@@ -61,7 +72,7 @@ export default function Dashboard() {
       const data = await response.json()
       
       if (response.ok) {
-        const newStatus: any = {}
+        const newStatus: OAuthStatusState = {}
         data.connections.forEach((conn: OAuthConnection) => {
           newStatus[conn.provider] = {
             connected: conn.status === 'connected',
