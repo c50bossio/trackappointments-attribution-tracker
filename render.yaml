@@ -29,7 +29,7 @@ services:
     startCommand: npm start
     envVars:
       - key: NEXT_PUBLIC_API_URL
-        value: https://trackappointments-backend.onrender.com
+        value: https://api.trackappointments.com
 
 databases:
   - name: trackappointments-db
