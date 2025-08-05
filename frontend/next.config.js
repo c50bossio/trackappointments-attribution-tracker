@@ -2,7 +2,7 @@
 const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
-  // output: 'standalone', // Disabled for development
+  output: 'standalone', // Enabled for production deployment
   
   // Environment variables for the client
   env: {
