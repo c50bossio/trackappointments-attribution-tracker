@@ -2,7 +2,7 @@ services:
   - type: web
     name: trackappointments-backend
     env: python
-    plan: starter
+    plan: basic-1gb
     region: oregon
     repo: https://github.com/c50bossio/trackappointments-attribution-tracker.git
     rootDir: backend
@@ -21,7 +21,7 @@ services:
   - type: web
     name: trackappointments-frontend
     env: node
-    plan: starter
+    plan: basic-1gb
     region: oregon
     repo: https://github.com/c50bossio/trackappointments-attribution-tracker.git
     rootDir: frontend
@@ -34,4 +34,4 @@ services:
 databases:
   - name: trackappointments-db
     databaseName: trackappointments
-    plan: starter
+    plan: basic-1gb
