@@ -9,6 +9,10 @@ const nextConfig = {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'https://api.trackappointments.com',
   },
 
+  // Performance optimizations
+  compress: true,
+  poweredByHeader: false,
+  
   // Experimental features
   experimental: {
     serverComponentsExternalPackages: [],
@@ -31,6 +35,14 @@ const nextConfig = {
           {
             key: 'Referrer-Policy',
             value: 'strict-origin-when-cross-origin',
+          },
+          {
+            key: 'X-XSS-Protection',
+            value: '1; mode=block',
+          },
+          {
+            key: 'Permissions-Policy',
+            value: 'camera=(), microphone=(), geolocation=()',
           },
         ],
       },
