@@ -240,7 +240,7 @@ async def health_check():
     return {
         "status": "healthy",
         "timestamp": datetime.utcnow().isoformat(),
-        "service": "bookingbridge-backend",
+        "service": "trackappointments-backend",
         "version": "1.0.0",
         "environment": os.getenv("ENVIRONMENT", "development")
     }
