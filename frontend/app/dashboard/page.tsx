@@ -29,15 +29,56 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState<'overview' | 'campaigns' | 'attributions' | 'settings'>('overview')
   const [loading, setLoading] = useState(true)
   const [connectingProvider, setConnectingProvider] = useState<string | null>(null)
+  
+  // Settings form state
+  const [businessSettings, setBusinessSettings] = useState({
+    business_name: 'Your Business Name',
+    default_currency: 'USD',
+    timezone: 'Eastern Time (ET)'
+  })
+  const [savingSettings, setSavingSettings] = useState(false)
+  
+  // OAuth connection state
+  const [oauthStatus, setOauthStatus] = useState({
+    facebook: { connected: false, loading: false },
+    google: { connected: false, loading: false },
+    square: { connected: false, loading: false },
+    stripe: { connected: false, loading: false }
+  })
+
+  // Fetch OAuth connection status
+  const fetchOAuthStatus = async () => {
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8002'
+      const response = await fetch(`${apiUrl}/api/v1/oauth/status?business_id=demo-business-123`)
+      const data = await response.json()
+      
+      if (response.ok) {
+        const newStatus = {}
+        data.connections.forEach(conn => {
+          newStatus[conn.provider] = {
+            connected: conn.status === 'connected',
+            loading: false,
+            account_name: conn.account_name,
+            last_sync: conn.last_sync
+          }
+        })
+        setOauthStatus(newStatus)
+      }
+    } catch (error) {
+      console.error('Error fetching OAuth status:', error)
+    }
+  }
 
   const handleOAuthConnect = async (provider: string) => {
-    setConnectingProvider(provider)
+    // Update loading state for this specific provider
+    setOauthStatus(prev => ({
+      ...prev,
+      [provider]: { ...prev[provider], loading: true }
+    }))
     
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8002'
-      
-      // Add a small delay to ensure the loading state is visible
-      await new Promise(resolve => setTimeout(resolve, 300))
       
       const response = await fetch(`${apiUrl}/api/v1/oauth/connect`, {
         method: 'POST',
@@ -54,23 +95,62 @@ export default function Dashboard() {
       const data = await response.json()
       
       if (response.ok) {
-        // Redirect to OAuth provider
+        console.log(`Redirecting to ${provider} OAuth:`, data.authorization_url)
+        // Redirect to real OAuth provider
         window.location.href = data.authorization_url
       } else {
         console.error('OAuth connection failed:', data)
         alert(`Failed to connect to ${provider}. Please try again.`)
-        setConnectingProvider(null)
+        setOauthStatus(prev => ({
+          ...prev,
+          [provider]: { ...prev[provider], loading: false }
+        }))
       }
     } catch (error) {
       console.error('OAuth connection error:', error)
       alert(`Error connecting to ${provider}. Please try again.`)
-      setConnectingProvider(null)
+      setOauthStatus(prev => ({
+        ...prev,
+        [provider]: { ...prev[provider], loading: false }
+      }))
+    }
+  }
+
+  const handleSaveSettings = async () => {
+    setSavingSettings(true)
+    
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8002'
+      
+      const response = await fetch(`${apiUrl}/api/v1/business/settings?business_id=demo-business-123`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(businessSettings)
+      })
+      
+      const data = await response.json()
+      
+      if (response.ok) {
+        alert('Settings saved successfully!')
+        console.log('Settings saved:', data)
+      } else {
+        console.error('Failed to save settings:', data)
+        alert('Failed to save settings. Please try again.')
+      }
+    } catch (error) {
+      console.error('Settings save error:', error)
+      alert('Error saving settings. Please try again.')
+    } finally {
+      setSavingSettings(false)
     }
   }
 
   useEffect(() => {
-    // Simulate loading data
+    // Simulate loading data and fetch OAuth status
     setLoading(true)
+    fetchOAuthStatus()
     setTimeout(() => {
       setCampaigns([
         {
@@ -368,77 +448,80 @@ export default function Dashboard() {
     </div>
   )
 
-  const SettingsTab = () => (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      {/* Connect Your Accounts */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-lg font-medium text-gray-900 mb-2">Connect Your Accounts</h3>
-        <p className="text-sm text-gray-600 mb-6">Connect your business accounts to start tracking attribution automatically. One-click setup, no technical knowledge required.</p>
-        <div className="space-y-4">
-          {[
-            { 
-              name: 'Facebook Ads', 
-              description: 'Track conversions from your Facebook advertising campaigns',
-              status: 'connected', 
-              color: 'green',
-              icon: '📘',
-              buttonText: 'Connected ✓'
-            },
-            { 
-              name: 'Google Ads', 
-              description: 'Monitor performance of your Google advertising spend',
-              status: 'connected', 
-              color: 'green',
-              icon: '🔍',
-              buttonText: 'Connected ✓'
-            },
-            { 
-              name: 'Square Payments', 
-              description: 'Track revenue from your Square point-of-sale system',
-              status: 'disconnected', 
-              color: 'red',
-              icon: '⬜',
-              buttonText: 'Connect with Square'
-            },
-            { 
-              name: 'Stripe Payments', 
-              description: 'Monitor online payments and subscription revenue',
-              status: 'connected', 
-              color: 'green',
-              icon: '💳',
-              buttonText: 'Connected ✓'
-            }
-          ].map((integration) => (
-            <div key={integration.name} className="p-4 border border-gray-200 rounded-xl hover:shadow-md transition-all">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-4">
-                  <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center text-xl">
-                    {integration.icon}
-                  </div>
-                  <div>
-                    <h4 className="font-semibold text-gray-900">{integration.name}</h4>
-                    <p className="text-sm text-gray-600">{integration.description}</p>
+  const SettingsTab = () => {
+    const integrations = [
+      { 
+        name: 'Facebook Ads', 
+        description: 'Track conversions from your Facebook advertising campaigns',
+        provider: 'facebook',
+        icon: '📘'
+      },
+      { 
+        name: 'Google Ads', 
+        description: 'Monitor performance of your Google advertising spend',
+        provider: 'google',
+        icon: '🔍'
+      },
+      { 
+        name: 'Square Payments', 
+        description: 'Track revenue from your Square point-of-sale system',
+        provider: 'square',
+        icon: '⬜'
+      },
+      { 
+        name: 'Stripe Payments', 
+        description: 'Monitor online payments and subscription revenue',
+        provider: 'stripe',
+        icon: '💳'
+      }
+    ]
+
+    return (
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Connect Your Accounts */}
+        <div className="bg-white rounded-lg shadow p-6">
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Connect Your Accounts</h3>
+          <p className="text-sm text-gray-600 mb-6">Connect your business accounts to start tracking attribution automatically. One-click setup, no technical knowledge required.</p>
+          <div className="space-y-4">
+            {integrations.map((integration) => {
+              const providerStatus = oauthStatus[integration.provider] || { connected: false, loading: false }
+              const isConnected = providerStatus.connected
+              const isLoading = providerStatus.loading
+              
+              return (
+                <div key={integration.name} className="p-4 border border-gray-200 rounded-xl hover:shadow-md transition-all">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-4">
+                      <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center text-xl">
+                        {integration.icon}
+                      </div>
+                      <div>
+                        <h4 className="font-semibold text-gray-900">{integration.name}</h4>
+                        <p className="text-sm text-gray-600">{integration.description}</p>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => !isConnected && !isLoading ? handleOAuthConnect(integration.provider) : undefined}
+                      disabled={isLoading || isConnected}
+                      className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                        isConnected 
+                          ? 'bg-green-100 text-green-800 cursor-default' 
+                          : isLoading
+                            ? 'bg-gray-400 text-white cursor-not-allowed'
+                            : 'bg-blue-600 text-white hover:bg-blue-700 cursor-pointer'
+                      }`}
+                    >
+                      {isLoading 
+                        ? 'Connecting...' 
+                        : isConnected 
+                          ? 'Connected ✓'
+                          : `Connect with ${integration.name.replace(' Ads', '').replace(' Payments', '')}`}
+                    </button>
                   </div>
                 </div>
-                <button 
-                  onClick={() => integration.status === 'disconnected' ? handleOAuthConnect(integration.name.toLowerCase().replace(/\s+/g, '').replace('payments', '').replace('ads', '')) : undefined}
-                  disabled={connectingProvider === integration.name.toLowerCase() || integration.status === 'connected'}
-                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                    integration.status === 'connected' 
-                      ? 'bg-green-100 text-green-800 cursor-default' 
-                      : connectingProvider === integration.name.toLowerCase()
-                        ? 'bg-gray-400 text-white cursor-not-allowed'
-                        : 'bg-blue-600 text-white hover:bg-blue-700 cursor-pointer'
-                  }`}
-                >
-                  {connectingProvider === integration.name.toLowerCase() 
-                    ? 'Connecting...' 
-                    : integration.buttonText}
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
+              )
+            })}
+          </div>
         
         {/* Help Section */}
         <div className="mt-6 p-4 bg-blue-50 rounded-lg">
@@ -467,6 +550,8 @@ export default function Dashboard() {
               type="text" 
               className="w-full border border-gray-300 rounded-md px-3 py-2"
               placeholder="Your Business Name"
+              value={businessSettings.business_name}
+              onChange={(e) => setBusinessSettings({...businessSettings, business_name: e.target.value})}
             />
           </div>
           
@@ -474,11 +559,15 @@ export default function Dashboard() {
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Default Currency
             </label>
-            <select className="w-full border border-gray-300 rounded-md px-3 py-2">
-              <option>USD</option>
-              <option>EUR</option>
-              <option>GBP</option>
-              <option>CAD</option>
+            <select 
+              className="w-full border border-gray-300 rounded-md px-3 py-2"
+              value={businessSettings.default_currency}
+              onChange={(e) => setBusinessSettings({...businessSettings, default_currency: e.target.value})}
+            >
+              <option value="USD">USD</option>
+              <option value="EUR">EUR</option>
+              <option value="GBP">GBP</option>
+              <option value="CAD">CAD</option>
             </select>
           </div>
 
@@ -486,21 +575,30 @@ export default function Dashboard() {
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Time Zone
             </label>
-            <select className="w-full border border-gray-300 rounded-md px-3 py-2">
-              <option>Eastern Time (ET)</option>
-              <option>Central Time (CT)</option>
-              <option>Mountain Time (MT)</option>
-              <option>Pacific Time (PT)</option>
+            <select 
+              className="w-full border border-gray-300 rounded-md px-3 py-2"
+              value={businessSettings.timezone}
+              onChange={(e) => setBusinessSettings({...businessSettings, timezone: e.target.value})}
+            >
+              <option value="Eastern Time (ET)">Eastern Time (ET)</option>
+              <option value="Central Time (CT)">Central Time (CT)</option>
+              <option value="Mountain Time (MT)">Mountain Time (MT)</option>
+              <option value="Pacific Time (PT)">Pacific Time (PT)</option>
             </select>
           </div>
 
-          <button className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors">
-            Save Settings
+          <button 
+            onClick={handleSaveSettings}
+            disabled={savingSettings}
+            className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+          >
+            {savingSettings ? 'Saving...' : 'Save Settings'}
           </button>
         </div>
       </div>
     </div>
-  )
+    )
+  }
 
   if (loading) {
     return (
