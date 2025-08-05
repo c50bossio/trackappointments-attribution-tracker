@@ -21,7 +21,7 @@ services:
   - type: web
     name: trackappointments-frontend
     env: node
-    plan: basic-1gb
+    plan: standard
     region: oregon
     repo: https://github.com/c50bossio/trackappointments-attribution-tracker.git
     rootDir: frontend
@@ -34,4 +34,4 @@ services:
 databases:
   - name: trackappointments-db
     databaseName: trackappointments
-    plan: basic-1gb
+    plan: standard
