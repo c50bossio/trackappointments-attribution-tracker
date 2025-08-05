@@ -34,4 +34,4 @@ services:
 databases:
   - name: trackappointments-db
     databaseName: trackappointments
-    plan: standard
+    plan: basic-1gb
